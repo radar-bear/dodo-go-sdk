@@ -8,6 +8,8 @@ import (
 )
 
 const EmptyAddress = "0x0000000000000000000000000000000000000000"
+const SELL = "sell"
+const BUY = "BUY"
 
 func StdAddr(address string) string {
 	if len(address) > 40 {
@@ -30,6 +32,10 @@ func Remove0xPrefix(originStr string) string {
 
 func Add0xPrefix(originStr string) string {
 	return "0x" + Remove0xPrefix(originStr)
+}
+
+func SplitWeb3ReturnValue(returnValue string, position int) string {
+	return returnValue[2+64*position : 66+64*position]
 }
 
 type DeployedInfo struct {
