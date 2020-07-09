@@ -6,6 +6,7 @@ import (
 	"github.com/radar-bear/goWeb3/helper"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"os"
 )
 
 type DODOContract struct {
@@ -18,18 +19,8 @@ type DODOContract struct {
 	Web3         *goWeb3.Web3
 }
 
-func NewDODOContract(baseTokenAddress string, quoteTokenAddress string) (dodo *DODOContract, err error) {
-	DODOZoo, err := NewDODOZooContract()
-	if err != nil {
-		return
-	}
-
-	DODOAddress, err := DODOZoo.GetDODOAddress(baseTokenAddress, quoteTokenAddress)
-	if err != nil {
-		return
-	}
-
-	contract, err := DODOZoo.Web3.NewContract(DODOAbi, DODOAddress)
+func _newDODO(web3 *goWeb3.Web3, address string) (dodo *DODOContract, err error) {
+	contract, err := web3.NewContract(DODOAbi, address)
 	if err != nil {
 		return
 	}
@@ -53,20 +44,44 @@ func NewDODOContract(baseTokenAddress string, quoteTokenAddress string) (dodo *D
 	}
 
 	dodo = &DODOContract{
-		DODOAddress,
+		address,
 		contract,
 		Base,
 		Quote,
 		Base.Decimals,
 		Quote.Decimals,
-		DODOZoo.Web3,
+		web3,
 	}
 	return
 }
 
-// ================= Getters =================
+func NewDODOContractByAddress(address string) (dodo *DODOContract, err error) {
+	nodeUrl := os.Getenv("ETH_NODE_URL")
+	if nodeUrl == "" {
+		err = errors.New("Require ENV ETH_NODE_URL")
+		return
+	}
 
-func (d *DODOContract) GetBalancedStatus() (B0 decimal.Decimal, Q0 decimal.Decimal, err error) {
+	web3 := goWeb3.NewWeb3(nodeUrl)
+	return _newDODO(web3, address)
+}
+
+func NewDODOContractByPair(baseTokenAddress string, quoteTokenAddress string) (dodo *DODOContract, err error) {
+	DODOZoo, err := NewDODOZooContract()
+	if err != nil {
+		return
+	}
+
+	DODOAddress, err := DODOZoo.GetDODOAddress(baseTokenAddress, quoteTokenAddress)
+	if err != nil {
+		return
+	}
+	return _newDODO(DODOZoo.Web3, DODOAddress)
+}
+
+// ================= Status Getters =================
+
+func (d *DODOContract) GetPoolSize() (B0 decimal.Decimal, Q0 decimal.Decimal, err error) {
 	res, err := d.Contract.Call("getExpectedTarget")
 	if err != nil {
 		return
@@ -77,12 +92,16 @@ func (d *DODOContract) GetBalancedStatus() (B0 decimal.Decimal, Q0 decimal.Decim
 }
 
 func (d *DODOContract) GetDODOBalances() (B decimal.Decimal, Q decimal.Decimal, err error) {
-	res, err := d.Contract.Call("_BASE_BALANCE_")
+	resBase, err := d.Contract.Call("_BASE_BALANCE_")
 	if err != nil {
 		return
 	}
-	B = helper.HexString2Decimal(res, int32(d.BaseDecimal)*-1)
-	Q = helper.HexString2Decimal(res, int32(d.QuoteDecimal)*-1)
+	B = helper.HexString2Decimal(resBase, int32(d.BaseDecimal)*-1)
+	resQuote, err := d.Contract.Call("_QUOTE_BALANCE_")
+	if err != nil {
+		return
+	}
+	Q = helper.HexString2Decimal(resQuote, int32(d.QuoteDecimal)*-1)
 	return
 }
 
@@ -118,6 +137,57 @@ func (d *DODOContract) GetOraclePrice() (price decimal.Decimal, err error) {
 	return
 }
 
+func (d *DODOContract) GetAdmin() (admin string, err error) {
+	owner, err := d.Contract.Call("_OWNER_")
+	if err != nil {
+		return
+	}
+	admin = StdAddr(owner)
+	return
+}
+
+func (d *DODOContract) GetSupervisor() (supervisor string, err error) {
+	sup, err := d.Contract.Call("_SUPERVISOR_")
+	if err != nil {
+		return
+	}
+	supervisor = StdAddr(sup)
+	return
+}
+
+func (d *DODOContract) GetMaintainer() (maintainer string, err error) {
+	sup, err := d.Contract.Call("_MAINTAINER_")
+	if err != nil {
+		return
+	}
+	maintainer = StdAddr(sup)
+	return
+}
+
+func (d *DODOContract) GetGasPriceLimit() (maxGasPrice int, err error) {
+	rawGasPrice, err := d.Contract.Call("_GAS_PRICE_LIMIT_")
+	if err != nil {
+		return
+	}
+	return helper.HexString2Int(rawGasPrice)
+}
+
+// ================= Queries =================
+
+func (d *DODOContract) GetLpBalance(lpAddress string) (baseBalance decimal.Decimal, quoteBalance decimal.Decimal, err error) {
+	rawBaseBalance, err := d.Contract.Call("getLpBaseBalance", goWeb3.HexToAddress(lpAddress))
+	if err != nil {
+		return
+	}
+	baseBalance = helper.HexString2Decimal(rawBaseBalance, int32(d.BaseDecimal)*-1)
+	rawQuoteBalance, err := d.Contract.Call("getLpQuoteBalance", goWeb3.HexToAddress(lpAddress))
+	if err != nil {
+		return
+	}
+	quoteBalance = helper.HexString2Decimal(rawQuoteBalance, int32(d.QuoteDecimal)*-1)
+	return
+}
+
 func (d *DODOContract) GetWithdrawPenalty(isBaseToken bool, amount decimal.Decimal) (penalty decimal.Decimal, err error) {
 	var decimals int
 	var funcName string
@@ -138,7 +208,7 @@ func (d *DODOContract) GetWithdrawPenalty(isBaseToken bool, amount decimal.Decim
 }
 
 func (d *DODOContract) QuerySellPrice(amount decimal.Decimal) (price decimal.Decimal, err error) {
-	rawPayQuote, err := d.Contract.Call("querySellBaseToken", helper.DecimalToBigInt(amount.Div(decimal.New(1, int32(d.BaseDecimal)))))
+	rawPayQuote, err := d.Contract.Call("querySellBaseToken", helper.DecimalToBigInt(amount.Mul(decimal.New(1, int32(d.BaseDecimal)))))
 	if err != nil {
 		return
 	}
@@ -148,7 +218,7 @@ func (d *DODOContract) QuerySellPrice(amount decimal.Decimal) (price decimal.Dec
 }
 
 func (d *DODOContract) QueryBuyPrice(amount decimal.Decimal) (price decimal.Decimal, err error) {
-	rawReceiveQuote, err := d.Contract.Call("queryBuyBaseToken", helper.DecimalToBigInt(amount.Div(decimal.New(1, int32(d.BaseDecimal)))))
+	rawReceiveQuote, err := d.Contract.Call("queryBuyBaseToken", helper.DecimalToBigInt(amount.Mul(decimal.New(1, int32(d.BaseDecimal)))))
 	if err != nil {
 		return
 	}

@@ -41,6 +41,7 @@ func SplitWeb3ReturnValue(returnValue string, position int) string {
 type DeployedInfo struct {
 	Mainnet map[string]string `json:"mainnet"`
 	Kovan   map[string]string `json:"kovan"`
+	Ropsten map[string]string `json:"ropsten"`
 }
 
 type gitResp struct {
