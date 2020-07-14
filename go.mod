@@ -1,4 +1,4 @@
-module github.com/radar-bear/dodo-sdk
+module github.com/radar-bear/dodo-go-sdk
 
 go 1.14
 

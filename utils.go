@@ -1,4 +1,4 @@
-package dodo_sdk
+package dodo_go_sdk
 
 import (
 	"encoding/base64"
