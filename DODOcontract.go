@@ -66,8 +66,8 @@ func NewDODOContractByAddress(address string) (dodo *DODOContract, err error) {
 	return _newDODO(web3, address)
 }
 
-func NewDODOContractByPair(baseTokenAddress string, quoteTokenAddress string) (dodo *DODOContract, err error) {
-	DODOZoo, err := NewDODOZooContract()
+func NewDODOContractByPair(dodoZooAddress string, baseTokenAddress string, quoteTokenAddress string) (dodo *DODOContract, err error) {
+	DODOZoo, err := NewDODOZooContract(dodoZooAddress)
 	if err != nil {
 		return
 	}
@@ -105,6 +105,20 @@ func (d *DODOContract) GetDODOBalances() (B decimal.Decimal, Q decimal.Decimal, 
 	return
 }
 
+func (d *DODOContract) GetPoolCapital() (BCapital decimal.Decimal, QCapital decimal.Decimal, err error) {
+	resBaseCapital, err := d.Contract.Call("getTotalBaseCapital")
+	if err != nil {
+		return
+	}
+	BCapital = helper.HexString2Decimal(resBaseCapital, int32(d.BaseDecimal)*-1)
+	resQuoteCapital, err := d.Contract.Call("getTotalQuoteCapital")
+	if err != nil {
+		return
+	}
+	QCapital = helper.HexString2Decimal(resQuoteCapital, int32(d.QuoteDecimal)*-1)
+	return
+}
+
 func (d *DODOContract) GetFeeRate() (feeRate decimal.Decimal, err error) {
 	rawLpFeeRate, err := d.Contract.Call("_LP_FEE_RATE_")
 	if err != nil {
@@ -129,6 +143,16 @@ func (d *DODOContract) GetK() (k decimal.Decimal, err error) {
 
 func (d *DODOContract) GetOraclePrice() (price decimal.Decimal, err error) {
 	res, err := d.Contract.Call("getOraclePrice")
+	if err != nil {
+		return
+	}
+	// e.g. if base decimal is 9 and quote decimal is 18, oracle price has decimal 27
+	price = helper.HexString2Decimal(res, int32(d.BaseDecimal-d.QuoteDecimal-18))
+	return
+}
+
+func (d *DODOContract) GetMidPrice() (price decimal.Decimal, err error) {
+	res, err := d.Contract.Call("getMidPrice")
 	if err != nil {
 		return
 	}

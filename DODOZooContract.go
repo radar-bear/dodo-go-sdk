@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/radar-bear/goWeb3"
 	"os"
-	"strings"
 )
 
 type DODOZooContract struct {
@@ -13,17 +12,7 @@ type DODOZooContract struct {
 	Web3     *goWeb3.Web3
 }
 
-func NewDODOZooContract() (zoo *DODOZooContract, err error) {
-	info, err := GetDepolyedInfo()
-	if err != nil {
-		return
-	}
-
-	network := strings.ToLower(os.Getenv("NETWORK"))
-	var address = info.Mainnet["DODOZoo"]
-	if network == "kovan" {
-		address = info.Kovan["DODOZoo"]
-	}
+func NewDODOZooContract(address string) (zoo *DODOZooContract, err error) {
 
 	nodeUrl := os.Getenv("ETH_NODE_URL")
 	if nodeUrl == "" {
